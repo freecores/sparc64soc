@@ -587,9 +587,9 @@ always @(posedge clk or negedge rstn)
                      end
                   5'b01001://INT
                      if(pcx_packet_d[117]) // Flush
-                        cpx_packet_1<={9'h171,13'h0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
+                        cpx_packet_1<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
                      else // Tread-to-thread interrupt
-                        cpx_packet_1<={9'h170,54'h0,pcx_packet_d[17:0],46'h0,pcx_packet_d[17:0]}; 
+                        cpx_packet_1<={9'h170,pcx_packet_d[113:112],52'h0,pcx_packet_d[17:0],46'h0,pcx_packet_d[17:0]}; 
                   //5'b01010: FP1 - processed by separate state
                   //5'b01011: FP2 - processed by separate state
                   //5'b01101: FWDREQ - not implemented
@@ -746,13 +746,13 @@ always @(posedge clk or negedge rstn)
                            begin
                               cpx_packet_1[143:140]<=4'b0100; // Type
                               cpx_packet_1[127:0]<={2'b0,pcx_packet_d[109]/*BIS*/,2'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],store_inv_vec};
-                              if((pcx_packet_d[110:109]==2'b01) && (pcx_packet_d[64+5:64]==0) && !inval_vect0[3] && !inval_vect1[3]) // Block init store
-                                 state<=`PCX_BIS;
-                              else
-                                 begin
+//                              if((pcx_packet_d[110:109]==2'b01) && (pcx_packet_d[64+5:64]==0) && !inval_vect0[3] && !inval_vect1[3]) // Block init store
+//                                 state<=`PCX_BIS;
+//                              else
+//                                 begin
                                     wb_cycle<=0;
                                     state<=`CPX_READY_1;
-                                 end
+//                                 end
                            end
                         5'b00010://CAS
                            begin

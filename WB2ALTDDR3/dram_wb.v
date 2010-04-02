@@ -56,26 +56,21 @@ module dram_wb(
    output     [ 7:0] ddr3_dm,
 
    output            phy_init_done,
+   
+   output     [ 7:0] fifo_used,
     
    input             dcm_locked,
    input             sysrst
 );
 
 wire [255:0] rd_data_fifo_out;
-reg  [255:0] rd_data_cache;
 reg  [ 23:0] rd_addr_cache;
 wire [ 71:0] wr_dout;
 wire [ 31:0] cmd_out;
 reg          wb_stb_i_d;
 reg  [ 31:0] mask_data;
 
-wire push_tran;
-wire fifo_read;
 wire fifo_empty;
-reg  push_tran_d;
-reg  fifo_read_d;
-reg  fifo_empty_d;
-
 
 wire [13:0] parallelterminationcontrol;
 wire [13:0] seriesterminationcontrol;
@@ -171,6 +166,7 @@ assign trig0[238]=0;
 assign trig0[254:239]=0;
 
 reg fifo_full_d;
+reg written;
 
 dram_fifo fifo(
     .aclr(ddr_rst),
@@ -179,28 +175,75 @@ dram_fifo fifo(
     .rdclk(ddr_clk),
 
     .data({wb_sel_i,wb_dat_i,wb_we_i,wb_adr_i[33:3]}),
-    .wrreq(wb_cyc_i && wb_stb_i && (!wb_stb_i_d || fifo_full_d) && !fifo_full && !(rd_addr_cache==wb_adr_i[28:5] && !wb_we_i)),
+    .wrreq(wb_cyc_i && wb_stb_i && (!wb_stb_i_d || (fifo_full_d && !written)) && !fifo_full && !(rd_addr_cache==wb_adr_i[28:5] && !wb_we_i)),
     .wrfull(fifo_full),
 
     .rdreq(fifo_read),
     .q({wr_dout,cmd_out}),
+    .wrusedw(fifo_used),
     .rdempty(fifo_empty)
 );
 
-assign fifo_read=cmd_out[31] ? push_tran:rd_data_valid;
+`define DDR_IDLE    3'b000
+`define DDR_WRITE_1 3'b001
+`define DDR_WRITE_2 3'b010
+`define DDR_READ_1  3'b011
+`define DDR_READ_2  3'b100
 
-reg dram_ready_d;
+reg [2:0] ddr_state;
+reg       push_tran;
+reg       fifo_read;
 
-always @(posedge ddr_clk)
-   begin
-      fifo_empty_d<=fifo_empty;
-      fifo_read_d<=fifo_read;
-      dram_ready_d<=dram_ready;
-      fifo_full_d<=fifo_full;
-   end
-
-// Push transaction to controller FIFO
-assign push_tran=!fifo_empty && dram_ready && (fifo_empty_d || fifo_read_d || !dram_ready_d);
+always @(posedge ddr_clk or posedge ddr_rst)
+   if(ddr_rst)
+      begin
+         ddr_state<=`DDR_IDLE;
+         fifo_read<=0;
+         push_tran<=0;
+         rd_data_valid_stb<=0;
+      end
+   else
+      case(ddr_state)
+         `DDR_IDLE:
+            if(!fifo_empty && dram_ready)
+               begin
+                  push_tran<=1;
+                  if(cmd_out[31])
+                     begin
+                        ddr_state<=`DDR_WRITE_1;
+                        fifo_read<=1;
+                     end
+                  else
+                     ddr_state<=`DDR_READ_1;
+               end
+         `DDR_WRITE_1:
+            begin
+               push_tran<=0;
+               fifo_read<=0;
+               ddr_state<=`DDR_WRITE_2; // Protect against FIFO empty signal latency
+            end
+         `DDR_WRITE_2:
+            ddr_state<=`DDR_IDLE;
+         `DDR_READ_1:
+            begin
+               push_tran<=0;
+               if(rd_data_valid)
+                  begin
+                     rd_data_valid_stb<=1;
+                     fifo_read<=1;
+                     ddr_state<=`DDR_READ_2;
+                  end
+            end
+         `DDR_READ_2:
+            begin
+               fifo_read<=0;
+               if(wb_ack_d1) // Enought delay to protect against FIFO empty signal latency
+                  begin
+                     rd_data_valid_stb<=0;
+                     ddr_state<=`DDR_IDLE;
+                  end
+            end
+      endcase
 
 reg rd_data_valid_stb;
 reg rd_data_valid_stb_d1;
@@ -235,22 +278,22 @@ always @(posedge wb_clk_i or posedge wb_rst_i)
       rd_data_valid_stb_d2<=rd_data_valid_stb_d1;
       rd_data_valid_stb_d3<=rd_data_valid_stb_d2;
       rd_data_valid_stb_d4<=rd_data_valid_stb_d3;
+      fifo_full_d<=fifo_full;
+      if(wb_ack_o)
+         written<=0;
+      else
+         if(!fifo_full && fifo_full_d)
+            written<=1;
    end
 
-assign wb_ack_o=wb_we_i ? (wb_cyc_i && wb_stb_i && !fifo_full):rd_data_valid_stb_d2 && !rd_data_valid_stb_d3 || (!wb_we_i && rd_addr_cache==wb_adr_i[28:5]);
+assign wb_ack_o=wb_we_i ? (wb_cyc_i && wb_stb_i && !fifo_full):(rd_data_valid_stb_d2 && !rd_data_valid_stb_d3) || (rd_addr_cache==wb_adr_i[28:5]);
 
 always @(posedge ddr_clk)
    begin
       wb_ack_d<=wb_ack_o;
       wb_ack_d1<=wb_ack_d;
       if(rd_data_valid)
-         begin
-            rd_data_fifo_out_d<=rd_data_fifo_out;
-            rd_data_valid_stb<=1;
-         end
-      else 
-         if(wb_ack_d1)
-            rd_data_valid_stb<=0;
+         rd_data_fifo_out_d<=rd_data_fifo_out;
    end
     
 endmodule

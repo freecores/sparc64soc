@@ -369,7 +369,7 @@ wb_conbus_top wishbone (
 s1_top cpu (
     .sys_clock_i(wb_clk_i), 
     .sys_reset_i(wb_rst_i), 
-    .sys_irq_i(eth_irq), 
+    .eth_irq_i(eth_irq), 
     .wbm_ack_i(m0_ack_o), 
     .wbm_data_i(m0_dat_o), 
     .wbm_cycle_o(m0_cyc_i), 
@@ -379,6 +379,8 @@ s1_top cpu (
     .wbm_data_o(m0_dat_i), 
     .wbm_sel_o(m0_sel_i)
     );
+
+wire [7:0] fifo_used;
 
 dram_wb dram_wb_inst (
     .clk200(sysclk), 
@@ -414,6 +416,7 @@ dram_wb dram_wb_inst (
     .ddr3_dm(ddr3_dm), 
     .phy_init_done(phy_init_done), 
     .dcm_locked(dcm_locked), 
+    .fifo_used(fifo_used),
     .sysrst(sysrst)
 );
 
@@ -514,7 +517,7 @@ eth_sgmii eth_ctrl (
     .md(md),
     .mdc(mdc),
     
-    int_eth(eth_int)
+    .int_eth(eth_int)
 );
 
 assign eth_rst=!wb_rst_i; // PHY reset
@@ -614,10 +617,12 @@ always @( * )
                ILA_DATA[203]<=s4_ack_i;
             end
       endcase
-		ILA_DATA[204]<=stx;
-		ILA_DATA[205]<=srx;
-		ILA_DATA[206]<=baud_o;
-      ILA_DATA[220:207]<=cycle_count[31:18];
+      ILA_DATA[204]<=stx;
+      ILA_DATA[205]<=srx;
+      ILA_DATA[206]<=baud_o;
+      //ILA_DATA[220:207]<=cycle_count[31:18];
+      ILA_DATA[220:213]<=fifo_used;
+      ILA_DATA[212:207]<=cycle_count[31:26];
       ILA_DATA[221]<=dcm_locked;
       ILA_DATA[222]<=wb_rst_i;
       ILA_DATA[223]<=phy_init_done;
