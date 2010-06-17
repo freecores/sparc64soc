@@ -49,7 +49,7 @@ module sparc_exu_rml_cwp (/*AUTOARG*/
    exu_tlu_spill_e, tlu_exu_cwpccr_update_m, tlu_exu_cwp_retry_m, 
    tlu_exu_cwp_m, thr_d, ecl_rml_thr_m, ecl_rml_thr_w, tid_e, 
    next_cwp_w, next_cwp_e, cwp_wen_w, save_e, restore_e, 
-   ifu_exu_flushw_e, ecl_rml_cwp_wen_e, full_swap_e, rml_kill_w
+   ifu_exu_flushw_e, ecl_rml_cwp_wen_e, full_swap_e, rml_kill_w, next_cwp
    ) ;
    input clk;
    input se;
@@ -95,6 +95,7 @@ module sparc_exu_rml_cwp (/*AUTOARG*/
    output [1:0] exu_tlu_cwp_cmplt_tid;
    output       exu_tlu_cwp_retry;
    output [3:0] oddwin_w;
+   output [11:0] next_cwp;
    
    wire         can_swap;
    wire         swapping;
@@ -255,6 +256,7 @@ module sparc_exu_rml_cwp (/*AUTOARG*/
 
    // oddwin_w is the new value of cwp[0]
    assign        oddwin_w[3:0] = {cwp_thr3_next[0],cwp_thr2_next[0],cwp_thr1_next[0],cwp_thr0_next[0]};
+   assign        next_cwp={cwp_thr3_next,cwp_thr2_next,cwp_thr1_next,cwp_thr0_next};
    // mux between new and current value
    mux4ds #(3) cwp_next0_mux(.dout(cwp_thr0_next[2:0]),
                              .in0(cwp_thr0[2:0]),

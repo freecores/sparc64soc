@@ -61,7 +61,7 @@ module sparc_exu_rml (/*AUTOARG*/
    ecl_rml_cleanwin_wen_w, ecl_rml_xor_data_e, ecl_rml_kill_e, 
    ecl_rml_kill_w, ecl_rml_early_flush_w, exu_tlu_wsr_data_w, 
    tlu_exu_agp, tlu_exu_agp_swap, tlu_exu_agp_tid, tlu_exu_cwp_m, 
-   tlu_exu_cwpccr_update_m, ecl_rml_inst_vld_w
+   tlu_exu_cwpccr_update_m, ecl_rml_inst_vld_w,current_cwp
    ) ;
    input rclk;
    input se;
@@ -146,7 +146,8 @@ module sparc_exu_rml (/*AUTOARG*/
    output [1:0]  rml_irf_new_agp; // alternate global pointer
    output        rml_irf_swap_global;
    output [1:0]  rml_irf_global_tid;
-
+   output reg [11:0] current_cwp;
+   
    wire          clk;
    wire [1:0]    tid_d;
    wire [3:0]    thr_d;
@@ -445,6 +446,16 @@ module sparc_exu_rml (/*AUTOARG*/
    dff_s #(4) oddwin_dff(.din(oddwin_m[3:0]), .clk(clk), .q(exu_ifu_oddwin_s[3:0]),
                        .se(se), .si(), .so());
 
+   integer i;
+   wire [11:0] next_cwp;
+   always @(posedge clk)
+      begin
+         current_cwp[2:0]<=(cwp_wen_m & ecl_rml_thr_m[0])? next_cwp_m: next_cwp[2:0];
+         current_cwp[5:3]<=(cwp_wen_m & ecl_rml_thr_m[1])? next_cwp_m: next_cwp[5:3];
+         current_cwp[8:6]<=(cwp_wen_m & ecl_rml_thr_m[2])? next_cwp_m: next_cwp[8:6];
+         current_cwp[11:9]<=(cwp_wen_m & ecl_rml_thr_m[3])? next_cwp_m: next_cwp[11:9];
+      end
+      
    sparc_exu_rml_cwp cwp(
                          .swap_outs     (swap_outs),
                          .swap_locals_ins(swap_locals_ins),
@@ -452,6 +463,7 @@ module sparc_exu_rml (/*AUTOARG*/
                          .old_cwp_e     (old_cwp_e[2:0]),
                          .new_cwp_e     (new_cwp_e[2:0]),
                          .oddwin_w     (oddwin_w[3:0]),
+                         .next_cwp     (next_cwp),
                          /*AUTOINST*/
                          // Outputs
                          .rml_ecl_cwp_d (rml_ecl_cwp_d[2:0]),

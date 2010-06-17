@@ -463,7 +463,281 @@ module sparc_exu (/*AUTOARG*/
    output [7:0]         exu_ifu_err_synd_m;
    wire [1:0]           rml_irf_old_e_cwp_e;
    wire [1:0]           rml_irf_new_e_cwp_e;
- 
+`ifdef FPGA_NEW_IRF
+
+wire [ 71:0]irf_byp_rs1_data_d_l_fpga;
+wire [ 71:0]irf_byp_rs2_data_d_l_fpga;
+wire [ 71:0]irf_byp_rs3_data_d_l_fpga;
+wire [ 31:0]irf_byp_rs3h_data_d_l_fpga;
+
+/*clkdbl clkdbl_inst(
+	.inclk0(rclk),
+	.c0(rclk2x)
+);
+
+wire [738:0] ILA_DATA;
+wire [ 71:0]irf_byp_rs1_data_d_l_ref;
+wire [ 71:0]irf_byp_rs2_data_d_l_ref;
+wire [ 71:0]irf_byp_rs3_data_d_l_ref;
+wire [ 31:0]irf_byp_rs3h_data_d_l_ref;
+
+ST1 ila(
+	.acq_clk(rclk),
+	.acq_data_in(ILA_DATA),
+	.acq_trigger_in(ILA_DATA)
+);
+
+wire [35:0] ref_cnt;
+wire [ 3:0] allow;
+reg  [35:0] cnt;
+reg  [15:0] err_cnt;
+
+VIO1 vio(
+	.probe(cnt>refcnt),
+	.source({allow,ref_cnt})
+);
+
+reg ifu_exu_ren1_s_d;
+reg ifu_exu_ren2_s_d;
+reg ifu_exu_ren3_s_d;
+reg [71:0] irf_byp_rs1_data_d_l_fpga_d;
+reg [71:0] irf_byp_rs2_data_d_l_fpga_d;
+reg [71:0] irf_byp_rs3_data_d_l_fpga_d;
+reg [31:0] irf_byp_rs3h_data_d_l_fpga_d;
+reg [71:0] irf_byp_rs1_data_d_l_d;
+reg [71:0] irf_byp_rs2_data_d_l_d;
+reg [71:0] irf_byp_rs3_data_d_l_d;
+reg [31:0] irf_byp_rs3h_data_d_l_d;
+reg [31:0] written;
+reg        swap_d;
+reg        swap_d1;
+reg [ 4:0] ecl_irf_rd_m_d;
+reg [ 4:0] ecl_irf_rd_g_d;
+reg [ 2:0] current_window;
+reg [ 2:0] new_lo_cwp_d;
+reg [ 4:0] ifu_exu_rs1_s_d;
+reg [ 4:0] ifu_exu_rs2_s_d;
+reg [ 4:0] ifu_exu_rs3_s_d;
+
+wire [4:0] wraddr0=current_window[0] && ecl_irf_rd_m_d[3] ? {~ecl_irf_rd_m_d[4],ecl_irf_rd_m_d[3:0]}:ecl_irf_rd_m_d;
+wire [4:0] wraddr1=current_window[0] && ecl_irf_rd_g_d[3] ? {~ecl_irf_rd_g_d[4],ecl_irf_rd_g_d[3:0]}:ecl_irf_rd_g_d;
+wire [4:0] rdaddr0=current_window[0] && ifu_exu_rs1_s_d[3] ? {~ifu_exu_rs1_s_d[4],ifu_exu_rs1_s_d[3:0]}:ifu_exu_rs1_s_d;
+wire [4:0] rdaddr1=current_window[0] && ifu_exu_rs2_s_d[3] ? {~ifu_exu_rs2_s_d[4],ifu_exu_rs2_s_d[3:0]}:ifu_exu_rs2_s_d;
+wire [4:0] rdaddr2=current_window[0] && ifu_exu_rs3_s_d[3] ? {~ifu_exu_rs3_s_d[4],ifu_exu_rs3_s_d[3:0]}:ifu_exu_rs3_s_d;
+
+wire [3:0] syndrome;
+
+always @(posedge rclk or negedge arst_l)
+   if(~arst_l)
+      begin
+         written<=0;
+         current_window<=0;
+         swap_d<=0;
+         swap_d1<=0;
+         err_cnt<=0;
+      end
+   else
+   begin
+      if(rml_irf_swap_local_e && (current_window!=rml_irf_old_lo_cwp_e))
+         cnt<=36'b0;
+      else
+         cnt<=cnt+1;
+      if(err_cnt==16'h0360)
+         err_cnt<=16'b0;
+      else
+         if(rml_irf_swap_local_e && (current_window!=rml_irf_old_lo_cwp_e))
+            err_cnt<=err_cnt+1;
+      ifu_exu_ren1_s_d<=ifu_exu_ren1_s;
+      ifu_exu_ren2_s_d<=ifu_exu_ren2_s;
+      ifu_exu_ren3_s_d<=ifu_exu_ren3_s;
+      irf_byp_rs1_data_d_l_fpga_d<=irf_byp_rs1_data_d_l_fpga;
+      irf_byp_rs2_data_d_l_fpga_d<=irf_byp_rs2_data_d_l_fpga;
+      irf_byp_rs3_data_d_l_fpga_d<=irf_byp_rs3_data_d_l_fpga;
+      irf_byp_rs3h_data_d_l_fpga_d<=irf_byp_rs3h_data_d_l_fpga;
+      irf_byp_rs1_data_d_l_d<=irf_byp_rs1_data_d_l;
+      irf_byp_rs2_data_d_l_d<=irf_byp_rs2_data_d_l;
+      irf_byp_rs3_data_d_l_d<=irf_byp_rs3_data_d_l;
+      irf_byp_rs3h_data_d_l_d<=irf_byp_rs3h_data_d_l;
+      swap_d<=rml_irf_swap_local_e;
+      swap_d1<=swap_d;
+      ecl_irf_rd_m_d<=ecl_irf_rd_m;
+      ecl_irf_rd_g_d<=ecl_irf_rd_g;
+      new_lo_cwp_d<=rml_irf_new_lo_cwp_e;
+      ifu_exu_rs1_s_d<=ifu_exu_rs1_s;
+      ifu_exu_rs2_s_d<=ifu_exu_rs2_s;
+      ifu_exu_rs3_s_d<=ifu_exu_rs3_s;
+      if(swap_d)
+         current_window<=new_lo_cwp_d;
+      if(swap_d1)
+         if(rml_irf_kill_restore_w) // SAVE
+            written<=(ecl_irf_wen_w<<wraddr0) | (ecl_irf_wen_w2<<wraddr1);
+         else // restore
+            written<=32'hFFFFFFFF;
+      else
+         begin
+            if(ecl_irf_wen_w)
+               written[wraddr0]<=1;
+            if(ecl_irf_wen_w2)
+               written[wraddr1]<=1;
+         end
+   end 
+
+wire read_lo0=(rdaddr0>5'd7) && (rdaddr0<5'd24);
+wire read_lo1=(rdaddr1>5'd7) && (rdaddr1<5'd24);
+wire read_lo2=(rdaddr2>5'd7) && (rdaddr2<5'd24);
+wire read_known0=(!read_lo0) || written[rdaddr0];
+wire read_known1=(!read_lo1) || written[rdaddr1];
+wire read_known2=(!read_lo2) || written[rdaddr2];
+
+assign syndrome[0]=ifu_exu_ren1_s_d && (irf_byp_rs1_data_d_l_ref!=irf_byp_rs1_data_d_l_fpga);
+assign syndrome[1]=ifu_exu_ren2_s_d && (irf_byp_rs2_data_d_l_ref!=irf_byp_rs2_data_d_l_fpga);
+assign syndrome[2]=ifu_exu_ren3_s_d && (irf_byp_rs3_data_d_l_ref!=irf_byp_rs3_data_d_l_fpga);
+assign syndrome[3]=ifu_exu_ren3_s_d && (irf_byp_rs3h_data_d_l_ref!=irf_byp_rs3h_data_d_l_fpga);
+
+assign ILA_DATA[1:0]=ifu_exu_tid_s2;
+assign ILA_DATA[6:2]=ifu_exu_rs1_s;
+assign ILA_DATA[11:7]=ifu_exu_rs2_s;
+assign ILA_DATA[16:12]=ifu_exu_rs3_s;
+assign ILA_DATA[17]=ifu_exu_ren1_s;
+assign ILA_DATA[18]=ifu_exu_ren2_s;
+assign ILA_DATA[19]=ifu_exu_ren3_s;
+assign ILA_DATA[20]=ecl_irf_wen_w;
+assign ILA_DATA[21]=ecl_irf_wen_w2;
+assign ILA_DATA[26:22]=ecl_irf_rd_m_d;
+assign ILA_DATA[31:27]=ecl_irf_rd_g_d;
+assign ILA_DATA[103:32]=byp_irf_rd_data_w;
+assign ILA_DATA[175:104]=byp_irf_rd_data_w2;
+assign ILA_DATA[177:176]=ecl_irf_tid_m;
+assign ILA_DATA[179:178]=ecl_irf_tid_g;
+assign ILA_DATA[182:180]=rml_irf_old_lo_cwp_e;
+assign ILA_DATA[185:183]=rml_irf_new_lo_cwp_e;
+assign ILA_DATA[187:186]=rml_irf_old_e_cwp_e;
+assign ILA_DATA[189:188]=rml_irf_new_e_cwp_e;
+assign ILA_DATA[190]=rml_irf_swap_even_e;
+assign ILA_DATA[191]=rml_irf_swap_odd_e;
+assign ILA_DATA[192]=rml_irf_swap_local_e;
+assign ILA_DATA[193]=rml_irf_kill_restore_w;
+assign ILA_DATA[195:194]=rml_irf_cwpswap_tid_e;
+assign ILA_DATA[197:196]=rml_irf_old_agp;
+assign ILA_DATA[199:198]=rml_irf_new_agp;
+assign ILA_DATA[200]=rml_irf_swap_global;
+assign ILA_DATA[202:201]=rml_irf_global_tid;
+assign ILA_DATA[274:203]=irf_byp_rs1_data_d_l_ref;
+assign ILA_DATA[346:275]=irf_byp_rs2_data_d_l_ref;
+assign ILA_DATA[418:347]=irf_byp_rs3_data_d_l_ref;
+assign ILA_DATA[450:419]=irf_byp_rs3h_data_d_l_ref;
+assign ILA_DATA[522:451]=irf_byp_rs1_data_d_l_fpga;
+assign ILA_DATA[594:523]=irf_byp_rs2_data_d_l_fpga;
+assign ILA_DATA[666:595]=irf_byp_rs3_data_d_l_fpga;
+assign ILA_DATA[698:667]=irf_byp_rs3h_data_d_l_fpga;
+assign ILA_DATA[702:699]=syndrome;// && read_known0;
+assign ILA_DATA[705:703]=current_cwp[2:0];
+assign ILA_DATA[706]=0;
+assign ILA_DATA[737:707]={cnt[14:0],err_cnt};
+assign ILA_DATA[738]=rml_irf_swap_local_e && (current_window!=rml_irf_old_lo_cwp_e);
+//assign ILA_DATA[699]=(irf_byp_rs1_data_d_l_fpga!=irf_byp_rs1_data_d_l_fpga_d) && (irf_byp_rs1_data_d_l==irf_byp_rs1_data_d_l_d);
+//assign ILA_DATA[700]=(irf_byp_rs2_data_d_l_fpga!=irf_byp_rs2_data_d_l_fpga_d) && (irf_byp_rs2_data_d_l==irf_byp_rs2_data_d_l_d);
+//assign ILA_DATA[701]=(irf_byp_rs3_data_d_l_fpga!=irf_byp_rs3_data_d_l_fpga_d) && (irf_byp_rs3_data_d_l==irf_byp_rs3_data_d_l_d);
+//assign ILA_DATA[702]=(irf_byp_rs3h_data_d_l_fpga!=irf_byp_rs3h_data_d_l_fpga_d) && (irf_byp_rs3h_data_d_l==irf_byp_rs3h_data_d_l_d);
+*/
+wire [11:0] current_cwp;
+
+   bw_r_irf_fpga1 irf(
+                
+                .current_cwp(current_cwp),
+                .so                     (short_scan0_1),
+                .si                     (short_si0),
+                .reset_l (arst_l),
+                .rst_tri_en             (mem_write_disable),
+                .rml_irf_old_e_cwp_e    (rml_irf_old_e_cwp_e[1:0]),
+                .rml_irf_new_e_cwp_e    (rml_irf_new_e_cwp_e[1:0]),
+                /*AUTOINST*/
+                // Outputs
+                .irf_byp_rs1_data_d_l   (irf_byp_rs1_data_d_l_fpga[71:0]),
+                .irf_byp_rs2_data_d_l   (irf_byp_rs2_data_d_l_fpga[71:0]),
+                .irf_byp_rs3_data_d_l   (irf_byp_rs3_data_d_l_fpga[71:0]),
+                .irf_byp_rs3h_data_d_l  (irf_byp_rs3h_data_d_l_fpga[31:0]),
+                // Inputs
+                .rclk                   (rclk),
+                //.rclk2x                   (rclk2x),
+                .se                     (se),
+                .sehold                 (sehold),
+                .ifu_exu_tid_s2         (ifu_exu_tid_s2[1:0]),
+                .ifu_exu_rs1_s          (ifu_exu_rs1_s[4:0]),
+                .ifu_exu_rs2_s          (ifu_exu_rs2_s[4:0]),
+                .ifu_exu_rs3_s          (ifu_exu_rs3_s[4:0]),
+                .ifu_exu_ren1_s         (ifu_exu_ren1_s),
+                .ifu_exu_ren2_s         (ifu_exu_ren2_s),
+                .ifu_exu_ren3_s         (ifu_exu_ren3_s),
+                .ecl_irf_wen_w          (ecl_irf_wen_w),
+                .ecl_irf_wen_w2         (ecl_irf_wen_w2),
+                .ecl_irf_rd_m           (ecl_irf_rd_m[4:0]),
+                .ecl_irf_rd_g           (ecl_irf_rd_g[4:0]),
+                .byp_irf_rd_data_w      (byp_irf_rd_data_w[71:0]),
+                .byp_irf_rd_data_w2     (byp_irf_rd_data_w2[71:0]),
+                .ecl_irf_tid_m          (ecl_irf_tid_m[1:0]),
+                .ecl_irf_tid_g          (ecl_irf_tid_g[1:0]),
+                .rml_irf_old_lo_cwp_e   (rml_irf_old_lo_cwp_e[2:0]),
+                .rml_irf_new_lo_cwp_e   (rml_irf_new_lo_cwp_e[2:0]),
+                .rml_irf_swap_even_e    (rml_irf_swap_even_e),
+                .rml_irf_swap_odd_e     (rml_irf_swap_odd_e),
+                .rml_irf_swap_local_e   (rml_irf_swap_local_e),
+                .rml_irf_kill_restore_w (rml_irf_kill_restore_w),
+                .rml_irf_cwpswap_tid_e  (rml_irf_cwpswap_tid_e[1:0]),
+                .rml_irf_old_agp        (rml_irf_old_agp[1:0]),
+                .rml_irf_new_agp        (rml_irf_new_agp[1:0]),
+                .rml_irf_swap_global    (rml_irf_swap_global),
+                .rml_irf_global_tid     (rml_irf_global_tid[1:0]));
+
+/*   bw_r_irf irf(
+                .so                     (short_scan0_1),
+                .si                     (short_si0),
+                .reset_l (arst_l),
+                .rst_tri_en             (mem_write_disable),
+                .rml_irf_old_e_cwp_e    (rml_irf_old_e_cwp_e[1:0]),
+                .rml_irf_new_e_cwp_e    (rml_irf_new_e_cwp_e[1:0]),
+                // Outputs
+                .irf_byp_rs1_data_d_l   (irf_byp_rs1_data_d_l_ref[71:0]),
+                .irf_byp_rs2_data_d_l   (irf_byp_rs2_data_d_l_ref[71:0]),
+                .irf_byp_rs3_data_d_l   (irf_byp_rs3_data_d_l_ref[71:0]),
+                .irf_byp_rs3h_data_d_l  (irf_byp_rs3h_data_d_l_ref[31:0]),
+                // Inputs
+                .rclk                   (rclk),
+                .se                     (se),
+                .sehold                 (sehold),
+                .ifu_exu_tid_s2         (ifu_exu_tid_s2[1:0]),
+                .ifu_exu_rs1_s          (ifu_exu_rs1_s[4:0]),
+                .ifu_exu_rs2_s          (ifu_exu_rs2_s[4:0]),
+                .ifu_exu_rs3_s          (ifu_exu_rs3_s[4:0]),
+                .ifu_exu_ren1_s         (ifu_exu_ren1_s),
+                .ifu_exu_ren2_s         (ifu_exu_ren2_s),
+                .ifu_exu_ren3_s         (ifu_exu_ren3_s),
+                .ecl_irf_wen_w          (ecl_irf_wen_w),
+                .ecl_irf_wen_w2         (ecl_irf_wen_w2),
+                .ecl_irf_rd_m           (ecl_irf_rd_m[4:0]),
+                .ecl_irf_rd_g           (ecl_irf_rd_g[4:0]),
+                .byp_irf_rd_data_w      (byp_irf_rd_data_w[71:0]),
+                .byp_irf_rd_data_w2     (byp_irf_rd_data_w2[71:0]),
+                .ecl_irf_tid_m          (ecl_irf_tid_m[1:0]),
+                .ecl_irf_tid_g          (ecl_irf_tid_g[1:0]),
+                .rml_irf_old_lo_cwp_e   (rml_irf_old_lo_cwp_e[2:0]),
+                .rml_irf_new_lo_cwp_e   (rml_irf_new_lo_cwp_e[2:0]),
+                .rml_irf_swap_even_e    (rml_irf_swap_even_e),
+                .rml_irf_swap_odd_e     (rml_irf_swap_odd_e),
+                .rml_irf_swap_local_e   (rml_irf_swap_local_e),
+                .rml_irf_kill_restore_w (rml_irf_kill_restore_w),
+                .rml_irf_cwpswap_tid_e  (rml_irf_cwpswap_tid_e[1:0]),
+                .rml_irf_old_agp        (rml_irf_old_agp[1:0]),
+                .rml_irf_new_agp        (rml_irf_new_agp[1:0]),
+                .rml_irf_swap_global    (rml_irf_swap_global),
+                .rml_irf_global_tid     (rml_irf_global_tid[1:0]));*/
+
+assign irf_byp_rs1_data_d_l=/*((err_cnt>=ref_cnt[15:0]) && (cnt[19:0]>=ref_cnt[35:16])) && allow[0] ? irf_byp_rs1_data_d_l_ref:*/irf_byp_rs1_data_d_l_fpga;
+assign irf_byp_rs2_data_d_l=/*((err_cnt>=ref_cnt[15:0]) && (cnt[19:0]>=ref_cnt[35:16])) && allow[1] ? irf_byp_rs2_data_d_l_ref:*/irf_byp_rs2_data_d_l_fpga;
+assign irf_byp_rs3_data_d_l=/*((err_cnt>=ref_cnt[15:0]) && (cnt[19:0]>=ref_cnt[35:16])) && allow[2] ? irf_byp_rs3_data_d_l_ref:*/irf_byp_rs3_data_d_l_fpga;
+assign irf_byp_rs3h_data_d_l=/*((err_cnt>=ref_cnt[15:0]) && (cnt[19:0]>=ref_cnt[35:16])) && allow[3] ? irf_byp_rs3h_data_d_l_ref:*/irf_byp_rs3h_data_d_l_fpga;
+
+`else 
    bw_r_irf irf(
                 .so                     (short_scan0_1),
                 .si                     (short_si0),
@@ -507,6 +781,7 @@ module sparc_exu (/*AUTOARG*/
                 .rml_irf_new_agp        (rml_irf_new_agp[1:0]),
                 .rml_irf_swap_global    (rml_irf_swap_global),
                 .rml_irf_global_tid     (rml_irf_global_tid[1:0]));
+`endif
    
    sparc_exu_byp bypass(
                         .so             (short_so1),
@@ -1089,6 +1364,7 @@ module sparc_exu (/*AUTOARG*/
                      .ecl_div_zero_rs2_e(ecl_div_zero_rs2_e));
 
    sparc_exu_rml rml(
+                     .current_cwp(current_cwp),
                      .so                (so0),
                      .si                (scan0_3),
                   .rst_tri_en        (mux_drive_disable),
