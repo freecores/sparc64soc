@@ -32,19 +32,19 @@ wire dquery0=(!cpu) && store && (!blockstore);
 wire dquery1=  cpu  && store && (!blockstore);
 wire dalloc0=(!cpu) && cacheable && (!invalidate) && load && (!prefetch);
 wire dalloc1=  cpu  && cacheable && (!invalidate) && load && (!prefetch);
-wire ddealloc0=((!cpu) && (ifill || cas || swap || strstore || (store && blockstore))) ||
-               (  cpu  && ((load && cacheable) || ifill || store || cas || swap || strload || strstore));
-wire ddealloc1=(  cpu  && (ifill || cas || swap || strstore || (store && blockstore))) ||
-               ((!cpu) && ((load && cacheable) || ifill || store || cas || swap || strload || strstore));
+wire ddealloc0=((!cpu) && ((ifill && (!prefetch) && (!invalidate)) || cas || swap || strstore || (store && blockstore))) ||
+               (  cpu  && ((load && cacheable && (!prefetch) && (!invalidate)) || (ifill && (!prefetch) && (!invalidate)) || store || cas || swap || strload || strstore));
+wire ddealloc1=(  cpu  && ((ifill && (!prefetch) && (!invalidate)) || cas || swap || strstore || (store && blockstore))) ||
+               ((!cpu) && ((load && cacheable && (!prefetch) && (!invalidate)) || (ifill && (!prefetch) && (!invalidate)) || store || cas || swap || strload || strstore));
 
 wire iquery0=0;
 wire iquery1=0;
 wire ialloc0=(!cpu) && cacheable && (!invalidate) && ifill;
 wire ialloc1=  cpu  && cacheable && (!invalidate) && ifill;
 wire idealloc0=((!cpu) && ((load && cacheable && (!prefetch) && (!invalidate))          || store || cas || swap || strstore)) ||
-               (  cpu  && ((load && cacheable && (!prefetch) && (!invalidate)) || ifill || store || cas || swap || strload || strstore));
+               (  cpu  && ((load && cacheable && (!prefetch) && (!invalidate)) || (ifill && (!prefetch) && (!invalidate)) || store || cas || swap || strload || strstore));
 wire idealloc1=(  cpu  && ((load && cacheable && (!prefetch) && (!invalidate))          || store || cas || swap || strstore )) ||
-               ((!cpu) && ((load && cacheable && (!prefetch) && (!invalidate)) || ifill || store || cas || swap || strload || strstore));
+               ((!cpu) && ((load && cacheable && (!prefetch) && (!invalidate)) || (ifill && (!prefetch) && (!invalidate)) || store || cas || swap || strload || strstore));
 
 
 wire [2:0] cpu0_dhit0;

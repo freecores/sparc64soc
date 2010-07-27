@@ -30,6 +30,14 @@ module os2wb_dual(
     output reg         cpx_ready,
     output reg [144:0] cpx_packet,
     
+    // Core 2nd interface 
+    input      [  4:0] pcx1_req,
+    input              pcx1_atom,
+    input      [123:0] pcx1_data,
+    output reg [  4:0] pcx1_grant,
+    output reg         cpx1_ready,
+    output reg [144:0] cpx1_packet,
+    
     // Wishbone master interface
     input      [ 63:0] wb_data_i,
     input              wb_ack,
@@ -125,6 +133,15 @@ reg          pcx_atom_1;
 reg          pcx_atom_2;
 reg          pcx_data_123_d;
 
+// PCX 2nf channel FIFO
+wire [129:0] pcx1_data_fifo;
+wire         pcx1_fifo_empty;
+reg  [  4:0] pcx1_req_1;
+reg  [  4:0] pcx1_req_2;
+reg          pcx1_atom_1;
+reg          pcx1_atom_2;
+reg          pcx1_data_123_d;
+
 always @(posedge clk)
    begin
       pcx_req_1<=pcx_req;
@@ -133,6 +150,13 @@ always @(posedge clk)
       pcx_req_2<=pcx_atom_1 ? pcx_req_1:5'b0;
       pcx_grant<=(pcx_req_1 | pcx_req_2);
       pcx_data_123_d<=pcx_data[123];
+
+      pcx1_req_1<=pcx1_req;
+      pcx1_atom_1<=pcx1_atom;
+      pcx1_atom_2<=pcx1_atom_1;
+      pcx1_req_2<=pcx1_atom_1 ? pcx1_req_1:5'b0;
+      pcx1_grant<=(pcx1_req_1 | pcx1_req_2);
+      pcx1_data_123_d<=pcx1_data[123];
    end
         
 pcx_fifo pcx_fifo_inst( 
@@ -151,6 +175,24 @@ pcx_fifo pcx_fifo_inst(
        // so if the first atomic packet is valid we latch both
     .empty(pcx_fifo_empty),
     .q(pcx_data_fifo)
+);
+
+pcx_fifo pcx_fifo_inst1( 
+       // FIFO should be first word fall-through
+       // It has no full flag as the core will send only limited number of requests,
+       // in original design we used it 32 words deep
+       // Just make it deeper if you experience overflow - 
+       // you can't just send no grant on full because the core expects immediate
+       // grant for at least two requests for each zone
+    .aclr(!rstn),
+    .clock(clk),
+    .data({pcx1_atom_1,pcx1_req_1,pcx1_data}),
+    .rdreq(fifo_rd1),
+    .wrreq((pcx1_req_1!=5'b00000 && pcx1_data[123]) || (pcx1_atom_2 && pcx1_data_123_d)), 
+       // Second atomic packet for FPU may be invalid, but should be sent to FPU
+       // so if the first atomic packet is valid we latch both
+    .empty(pcx1_fifo_empty),
+    .q(pcx1_data_fifo)
 );
 // --------------------------
 
@@ -171,8 +213,11 @@ always @(posedge clk or negedge rstn)
       end
 
 reg fifo_rd;
+reg fifo_rd1;
 wire [123:0] pcx_packet;
-assign pcx_packet=pcx_data_fifo[123:0];
+assign pcx_packet=cpu ? pcx1_data_fifo[123:0]:pcx_data_fifo[123:0];
+reg cpu;
+reg cpu2;
 
 always @(posedge clk or negedge rstn)
    if(rstn==0)
@@ -293,6 +338,8 @@ always @(posedge clk or negedge rstn)
                cnt<=0;
                cpx_packet<=145'b0;
                cpx_ready<=0;
+               cpx1_packet<=145'b0;
+               cpx1_ready<=0;
                cpx_two_packet<=0;
                multi_hit<=0;
                multi_hit1<=0;
@@ -308,7 +355,19 @@ always @(posedge clk or negedge rstn)
                         pcx_atom_d<=pcx_data_fifo[129];
                         fifo_rd<=1;
                         state<=`GOT_PCX_REQ;
+								cpu<=0;
+								cpu2<=0;
                      end
+						else
+                     if(!pcx1_fifo_empty)
+                        begin
+                           pcx_req_d<=pcx1_data_fifo[128:124];
+                           pcx_atom_d<=pcx1_data_fifo[129];
+                           fifo_rd1<=1;
+                           state<=`GOT_PCX_REQ;
+						   		cpu<=1;
+									cpu2<=1;
+                        end
             end
          `GOT_PCX_REQ:
             begin
@@ -322,11 +381,13 @@ always @(posedge clk or negedge rstn)
                   begin
                      state<=`CPX_INT_VEC_DIS;
                      fifo_rd<=0;
+							fifo_rd1<=0;
                   end
                else
                   if(pcx_atom_d==0)
                      begin
                         fifo_rd<=0;
+								fifo_rd1<=0;
                         if(pcx_packet[122:118]==5'b01010) // FP req
                            begin
                               state<=`PCX_FP_1;
@@ -345,6 +406,7 @@ always @(posedge clk or negedge rstn)
                   if(pcx_fifo_empty)
                      wb_sel<=8'h67;
                fifo_rd<=0;
+					fifo_rd1<=0;
                if(pcx_packet_d[122:118]==5'b01010) // FP req
                   state<=`PCX_FP_1;
                else               
@@ -364,7 +426,7 @@ always @(posedge clk or negedge rstn)
                      cpx_packet_1[130]<=((pcx_packet_d[122:118]==5'b10000) && (pcx_req_d==5'b10000)) ? 1:0; // Four byte fill
                      cpx_packet_1[129]<=pcx_atom_d;
                      cpx_packet_1[128]<=pcx_packet_d[110]; // Prefetch
-                     cpx_packet_1[127:0]<={2'b0,pcx_packet_d[109]/*BIS*/,pcx_packet_d[122:118]==5'b00000 ? 2'b01:2'b10,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],112'b0};
+                     cpx_packet_1[127:0]<={2'b0,pcx_packet_d[109]/*BIS*/,pcx_packet_d[122:118]==5'b00000 ? 2'b01:2'b10,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],112'b0};
                      state<=`CPX_READY_1;
                   end
                else
@@ -386,9 +448,9 @@ always @(posedge clk or negedge rstn)
                         state<=`PCX_REQ_STEP1_1;
                      end
                   else
-                     if((pcx_packet_d[12:10]!=3'b000) && !pcx_packet_d[117]) // Not FLUSH int and not this core
-                        state<=`PCX_IDLE; 
-                     else
+                     //if((pcx_packet_d[12:10]!=3'b000) && !pcx_packet_d[117]) // Not FLUSH int and not this core
+                     //   state<=`PCX_IDLE; 
+                     //else
                         state<=`CPX_READY_1;
                case(pcx_packet_d[122:118]) // Packet type
                   5'b00000://Load
@@ -513,9 +575,17 @@ always @(posedge clk or negedge rstn)
                      end
                   5'b01001://INT
                      if(pcx_packet_d[117]) // Flush
-                        cpx_packet_1<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
+							   begin
+                           cpx_packet_1<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
+                           cpx_packet_2<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
+									cpx_two_packet<=1;
+									cpu2<=!cpu; // Flush should be sent to both cores
+								end
                      else // Tread-to-thread interrupt
-                        cpx_packet_1<={9'h170,pcx_packet_d[113:112],52'h0,pcx_packet_d[17:0],46'h0,pcx_packet_d[17:0]}; 
+							   begin
+                           cpx_packet_1<={9'h170,pcx_packet_d[113:112],52'h0,pcx_packet_d[17:0],46'h0,pcx_packet_d[17:0]}; 
+									cpu<=pcx_packet_d[10];
+							   end
                   //5'b01010: FP1 - processed by separate state
                   //5'b01011: FP2 - processed by separate state
                   //5'b01101: FWDREQ - not implemented
@@ -654,7 +724,7 @@ always @(posedge clk or negedge rstn)
                         5'b00001://Store
                            begin
                               cpx_packet_1[143:140]<=4'b0100; // Type
-                              cpx_packet_1[127:0]<={2'b0,pcx_packet_d[109]/*BIS*/,2'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],inval_vect0};
+                              cpx_packet_1[127:0]<={2'b0,pcx_packet_d[109]/*BIS*/,2'b0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],inval_vect0};
 //                              if((pcx_packet_d[110:109]==2'b01) && (pcx_packet_d[64+5:64]==0) && !inval_vect0[3] && !inval_vect1[3]) // Block init store
 //                                 state<=`PCX_BIS;
 //                              else
@@ -667,7 +737,7 @@ always @(posedge clk or negedge rstn)
                            begin
                               cpx_packet_1[143:140]<=4'b0000; // Load return for first packet
                               cpx_packet_2[143:140]<=4'b0100; // Store ACK for second packet
-                              cpx_packet_2[127:0]<={5'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],inval_vect0};
+                              cpx_packet_2[127:0]<={5'b0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],inval_vect0};
                               cpx_packet_1[127:0]<={wb_data_i,wb_data_i};
                               state<=`PCX_REQ_STEP2;
                            end
@@ -931,8 +1001,9 @@ always @(posedge clk or negedge rstn)
             end
          `CPX_INT_VEC_DIS:
             begin
-               if(pcx_packet_d[12:10]==3'b000)
-                  cpx_two_packet<=1; // Send interrupt only if it is for this core
+               //if(pcx_packet_d[12:10]==3'b000) // Send interrupt only if it is for this core
+                  cpx_two_packet<=1; 
+				   cpu2<=pcx_packet_d[10];
                cpx_packet_1[144:140]<=5'b10100;
                cpx_packet_1[139:137]<=0;
                cpx_packet_1[136]<=1;
@@ -940,29 +1011,73 @@ always @(posedge clk or negedge rstn)
                cpx_packet_1[133:130]<=0;
                cpx_packet_1[129]<=pcx_atom_d;
                cpx_packet_1[128]<=0;
-               cpx_packet_1[127:0]<={5'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],112'b0};
+               cpx_packet_1[127:0]<={5'b0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],112'b0};
                cpx_packet_2<={9'h170,54'h0,pcx_packet_d[17:0],46'h0,pcx_packet_d[17:0]}; 
                state<=`CPX_READY_1;
             end
          `CPX_READY_1:
             begin
-               cpx_ready<=1;
-               cpx_packet<=cpx_packet_1;
+				   if(!cpu)
+					   begin
+                     cpx_ready<=1;
+                     cpx_packet<=cpx_packet_1;
+							if(othercpuhit[0])
+							   begin
+                           cpx1_ready<=1;
+                           cpx1_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b001,pcx_packet_d[64+11:64+6],inval_vect0};
+								end
+					   end
+					else
+					   begin
+                     cpx1_ready<=1;
+                     cpx1_packet<=cpx_packet_1;
+							if(othercpuhit[0])
+							   begin
+                           cpx_ready<=1;
+                           cpx_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b000,pcx_packet_d[64+11:64+6],inval_vect0};;
+								end
+					   end
                cnt<=cnt+1;
                if(`DEBUGGING)
                   if(multi_hit || multi_hit1)
                      wb_sel<=8'h11;
-               if(!cpx_two_packet)
-                  state<=`PCX_IDLE;
-               else
-                  //if(cnt==4'b1111 || pcx_packet_d[103:64]!=40'h9800000800)   
-                     state<=`CPX_READY_2;
+                state<=`CPX_READY_2;
             end
          `CPX_READY_2:
             begin
-               cpx_ready<=1;
-               cpx_packet<=cpx_packet_2;
-               state<=`PCX_IDLE;
+				   if(cpx_two_packet && !cpu2)
+					   begin
+						   cpx_ready<=1;
+						   cpx_packet<=cpx_packet_2;
+						end
+					else
+					   if(cpu2 && othercpuhit[1])
+						   begin
+                        cpx_ready<=1;
+                        cpx_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b000,pcx_packet_d[64+11:64+6],inval_vect1};;
+      					end
+						else
+						   begin
+							   cpx_ready<=0;
+								cpx_packet<=145'b0;
+							end
+				   if(cpx_two_packet && cpu2)
+					   begin
+						   cpx1_ready<=1;
+						   cpx1_packet<=cpx_packet_2;
+						end
+					else
+					   if(!cpu2 && othercpuhit[1])
+						   begin
+                        cpx1_ready<=1;
+                        cpx1_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b001,pcx_packet_d[64+11:64+6],inval_vect1};;
+      					end
+						else
+						   begin
+							   cpx1_ready<=0;
+								cpx1_packet<=145'b0;
+							end
+					state<=`PCX_IDLE;
             end
          `PCX_UNKNOWN:
             begin
@@ -975,7 +1090,7 @@ l1dir l1dir_inst(
    .clk(clk),
    .reset(!rstn),
    
-   .cpu(0),     // Issuing CPU number
+   .cpu(cpu),     // Issuing CPU number
    .strobe(state==`GOT_PCX_REQ),
    .way(pcx_packet[108:107]),     // Way to allocate for allocating loads
    .address(pcx_packet[64+39:64]),
