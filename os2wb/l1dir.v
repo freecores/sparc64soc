@@ -172,7 +172,7 @@ assign inval_vect0[90:88]={wayval0,cpu0_dhit0[2] && (address_d[5:4]==2'b11)};
 assign inval_vect0[93:91]={wayval0,cpu1_dhit0[2] && (address_d[5:4]==2'b11)};
 assign inval_vect0[111:94]=0;
 
-assign inval_vect1[3:0]={wayval1,cpu0_dhit1[2] && (address_d[5:4]==2'b00)};
+/*assign inval_vect1[3:0]={wayval1,cpu0_dhit1[2] && (address_d[5:4]==2'b00)};
 assign inval_vect1[7:4]={wayval1,cpu1_dhit1[2] && (address_d[5:4]==2'b00)};
 assign inval_vect1[31:8]=0;
 assign inval_vect1[34:32]={wayval1,cpu0_dhit1[2] && (address_d[5:4]==2'b01)};
@@ -183,6 +183,19 @@ assign inval_vect1[63:60]={wayval1,cpu1_dhit1[2] && (address_d[5:4]==2'b10)};
 assign inval_vect1[87:64]=0;
 assign inval_vect1[90:88]={wayval1,cpu0_dhit1[2] && (address_d[5:4]==2'b11)};
 assign inval_vect1[93:91]={wayval1,cpu1_dhit1[2] && (address_d[5:4]==2'b11)};
+assign inval_vect1[111:94]=0;*/
+
+assign inval_vect1[3:0]=0;
+assign inval_vect1[7:4]=0;
+assign inval_vect1[31:8]=0;
+assign inval_vect1[34:32]={wayval1,cpu0_dhit1[2] && (address_d[5]==0)};
+assign inval_vect1[37:35]={wayval1,cpu1_dhit1[2] && (address_d[5]==0)};
+assign inval_vect1[55:38]=0;
+assign inval_vect1[59:56]=0;
+assign inval_vect1[63:60]=0;
+assign inval_vect1[87:64]=0;
+assign inval_vect1[90:88]={wayval1,cpu0_dhit1[2] && (address_d[5]==1)};
+assign inval_vect1[93:91]={wayval1,cpu1_dhit1[2] && (address_d[5]==1)};
 assign inval_vect1[111:94]=0;
 
 assign wayval0=cpu0_dhit0[1:0] | cpu1_dhit0[1:0] | cpu0_ihit[1:0] | cpu1_ihit[1:0];

@@ -577,9 +577,9 @@ always @(posedge clk or negedge rstn)
                      if(pcx_packet_d[117]) // Flush
 							   begin
                            cpx_packet_1<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
-                           cpx_packet_2<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
-									cpx_two_packet<=1;
-									cpu2<=!cpu; // Flush should be sent to both cores
+                           //cpx_packet_2<={9'h171,pcx_packet_d[113:112],11'h0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],30'h0,pcx_packet_d[17:0],46'b0,pcx_packet_d[17:0]}; //FLUSH instruction answer
+									//cpx_two_packet<=1;
+									//cpu2<=!cpu; // Flush should be sent to both cores
 								end
                      else // Tread-to-thread interrupt
 							   begin
@@ -750,7 +750,7 @@ always @(posedge clk or negedge rstn)
                         5'b00101://STRSTORE
                            begin
                               cpx_packet_1[143:140]<=4'b0110; // Type
-                              cpx_packet_1[127:0]<={5'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],inval_vect0};
+                              cpx_packet_1[127:0]<={5'b0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],inval_vect0};
                               wb_cycle<=0;
                               state<=`CPX_READY_1;
                            end
@@ -758,7 +758,7 @@ always @(posedge clk or negedge rstn)
                            begin
                               cpx_packet_1[143:140]<=4'b0000; // Load return for first packet
                               cpx_packet_2[143:140]<=4'b0100; // Store ACK for second packet
-                              cpx_packet_2[127:0]<={5'b0,pcx_packet_d[64+5:64+4],3'b0,pcx_packet_d[64+11:64+6],inval_vect0};
+                              cpx_packet_2[127:0]<={5'b0,pcx_packet_d[64+5:64+4],2'b0,cpu,pcx_packet_d[64+11:64+6],inval_vect0};
                               cpx_packet_1[127:0]<={wb_data_i,wb_data_i};
                               state<=`PCX_REQ_STEP2; 
                            end
@@ -1054,7 +1054,7 @@ always @(posedge clk or negedge rstn)
 					   if(cpu2 && othercpuhit[1])
 						   begin
                         cpx_ready<=1;
-                        cpx_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b000,pcx_packet_d[64+11:64+6],inval_vect1};;
+                        cpx_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5],1'b1,3'b000,pcx_packet_d[64+11:64+6],inval_vect1};;
       					end
 						else
 						   begin
@@ -1070,7 +1070,7 @@ always @(posedge clk or negedge rstn)
 					   if(!cpu2 && othercpuhit[1])
 						   begin
                         cpx1_ready<=1;
-                        cpx1_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5:64+4],3'b001,pcx_packet_d[64+11:64+6],inval_vect1};;
+                        cpx1_packet<={1'b1,4'b0011,12'b0,5'b0,pcx_packet_d[64+5],1'b1,3'b001,pcx_packet_d[64+11:64+6],inval_vect1};;
       					end
 						else
 						   begin
