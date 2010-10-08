@@ -108,7 +108,7 @@ reg [31:0]		byte_overlap ;
 reg [31:0]		ld_full_raw ;
 reg [31:0]		ld_partial_raw ;
 reg [44:15]		alt_wr_data ;
-reg [44:15]		pipe_wr_data ;
+wire [44:15]		pipe_wr_data ;
 reg [14:0]		camwr_data ;
 reg			wptr_vld ; 
 reg			rptr_vld_tmp ; 
@@ -168,9 +168,10 @@ always @ (posedge rclk)
         end
 `endif
 
+assign pipe_wr_data[44:15] = stb_cam_data[44:15];
+
 always @(posedge rclk)
 	begin
-		pipe_wr_data[44:15] <= stb_cam_data[44:15];
 		alt_wr_data[44:15] <= stb_alt_wr_data[44:15];
 		camwr_data[14:0] <= stb_camwr_data[14:0];
 		wptr_vld 	<= stb_cam_wptr_vld ;
@@ -273,35 +274,38 @@ always @ (negedge rclk)
 //	|	45:9		| 8		|	7:0		| <- input port
 //				**^ stquad rm'ed
 
-assign	cam_data[44:0] = {stb_cam_data[44:15],stb_camwr_data[14:0]};
+reg [14:0] stb_camwr_data_d;
+reg        ldq_d;
+reg        stb_cam_vld_d;
+reg        scan_ena_d;
+reg [44:0]		stb_ramc_d [NUMENTRIES-1:0] /* synthesis syn_ramstyle = block_ram  syn_ramstyle = no_rw_check */;
 
-always @ (posedge rclk)
-	begin
-		
+always @(posedge rclk)
+   begin
+      stb_camwr_data_d[14:0]<=stb_camwr_data[14:0];
+      ldq_d<=ldq;
+      stb_cam_vld_d<=stb_cam_vld;
+      scan_ena_d<=scan_ena;
 		for (l=0;l<NUMENTRIES;l=l+1)
-				begin
-				ramc_entry[44:0] = stb_ramc[l] ;
+         stb_ramc_d[l]<=stb_ramc[l];
+   end
+
+assign	cam_data[44:0] = {stb_cam_data[44:15],stb_camwr_data_d[14:0]}; 
+
+always @( * )
+		for (l=0;l<NUMENTRIES;l=l+1)
+         begin
+				ramc_entry[44:0] = stb_ramc_d[l] ;
 				
 				cam_tag[36:0] = ramc_entry[44:8] ;
 				cam_bmask[7:0] = ramc_entry[7:0] ;
-				//stq =	ramc_entry[8] ;			// additional bit -stq
-				
-				// Prior to adding stb_quad_ld_cam port.
-				/*ptag_hit[l] = 
-					((cam_tag[36:1] == cam_data[44:9]) & 
-						(((cam_tag[0] == cam_data[8]) & ~stq) | stq)) & stcam_vld_tmp & ~scan_ena ;*/
-				// Modification. 
-				// * remove ramc_entry[8]. Or keep it but it won't be used.
-				// * Instead we'll control this from outside.
-				ptag_hit[l] = 
-					(cam_tag[36:1] == cam_data[44:9]) & 
-						(((cam_tag[0] == cam_data[8]) & ~ldq) | ldq) & stb_cam_vld & ~scan_ena ;
-				byte_match[l] = |(cam_bmask[7:0] & cam_data[7:0]) & stb_cam_vld & ~scan_ena ;
+            ptag_hit[l] = (cam_tag[36:1] == cam_data[44:9]) & 
+						(((cam_tag[0] == cam_data[8]) & ~ldq_d) | ldq_d) & stb_cam_vld_d & ~scan_ena_d ;
+				byte_match[l] = |(cam_bmask[7:0] & cam_data[7:0]) & stb_cam_vld_d & ~scan_ena_d ;
 				// Simplification :
-				byte_overlap[l] = |(~cam_bmask[7:0] & cam_data[7:0]) & stb_cam_vld & ~scan_ena ;
+				byte_overlap[l] = |(~cam_bmask[7:0] & cam_data[7:0]) & stb_cam_vld_d & ~scan_ena_d ;
+         end
 
-				end	
-	end
 
 // Mux the raw signals down to 8b quantities. Squash mask comes mid-way thru cycle.
 

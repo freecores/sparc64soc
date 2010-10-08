@@ -3572,7 +3572,7 @@ bw_r_tlb  AUTO_TEMPLATE (
                  .cache_ptag_w3   ({dtag_rdata_w3_m[28:0], lsu_ldst_va_m[10]}));     
 */
 
-bw_r_tlb dtlb  (
+bw_r_tlb_fpga dtlb  (
                 .so                     (short_scan0_4),
                 .si                     (short_scan0_3),
           .tlb_cam_key   ( {exu_lsu_ldst_va_e[47:28], 1'b1, 

@@ -1545,7 +1545,7 @@ module sparc_ifu (/*AUTOARG*/
 //                        .tlu_itlb_dmp_by_ctxt_g(tlu_itlb_dmp_by_ctxt_g),
 //                        .tlu_itlb_dmp_all_g(tlu_itlb_dmp_all_g));
 
-   bw_r_tlb itlb(
+   bw_r_tlb_fpga itlb(
 		              .tlb_pgnum_crit	(),
 		              // Outputs
 		              .tlb_rd_tte_tag	 (itlb_rd_tte_tag[58:0]),  // 2
